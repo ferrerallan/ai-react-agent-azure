@@ -24,8 +24,7 @@ This guide provides steps to configure Elastic Cloud service in the Azure portal
 4. Wait for deployment completion (this may take a few minutes).
 
 ## Step 6: Get Access Credentials
-1. Go to the resource created.
-2. In the **Overview** page, find the **Cloud ID** or **endpoint**.
+1. Go to the resource created on Kibana.
 3. Create an **API key** by following the instructions.
 
 ## Step 7: Create API Key
