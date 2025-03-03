@@ -357,6 +357,41 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "elastic-transport"
+version = "8.17.0"
+description = "Transport classes and utilities shared among Python Elastic client libraries"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+certifi = "*"
+urllib3 = ">=1.26.2,<3"
+
+[package.extras]
+develop = ["pytest", "pytest-cov", "pytest-mock", "pytest-asyncio", "pytest-httpserver", "trustme", "requests", "aiohttp", "httpx", "httpcore (<1.0.6)", "respx", "opentelemetry-api", "opentelemetry-sdk", "orjson", "sphinx (>2)", "furo", "sphinx-autodoc-typehints"]
+
+[[package]]
+name = "elasticsearch"
+version = "8.17.1"
+description = "Python client for Elasticsearch"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+elastic-transport = ">=8.15.1,<9"
+
+[package.extras]
+async = ["aiohttp (>=3,<4)"]
+dev = ["aiohttp", "black", "build", "coverage", "isort", "jinja2", "mapbox-vector-tile", "nox", "numpy", "orjson", "pandas", "pyarrow", "pytest", "pytest-asyncio", "pytest-cov", "python-dateutil", "pyyaml (>=5.4)", "requests (>=2,<3)", "simsimd", "twine", "unasync"]
+docs = ["sphinx", "sphinx-autodoc-typehints", "sphinx-rtd-theme (>=2.0)"]
+orjson = ["orjson (>=3)"]
+pyarrow = ["pyarrow (>=1)"]
+requests = ["requests (>=2.4.0,!=2.32.2,<3.0.0)"]
+vectorstore-mmr = ["numpy (>=1)", "simsimd (>=3)"]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.2.2"
 description = "Backport of PEP 654 (exception groups)"
@@ -1128,6 +1163,22 @@ pyarrow = ["pyarrow (>=11.0.0)"]
 pyspark = ["pyspark (>=3.5.0)"]
 tests = ["covdefaults", "hypothesis", "pytest", "pytest-cov", "pytest-env", "pytest-randomly", "typing-extensions"]
 typing = ["mypy (>=1.15.0,<1.16.0)", "pandas-stubs", "pyright", "typing-extensions"]
+
+[[package]]
+name = "neo4j"
+version = "5.28.1"
+description = "Neo4j Bolt driver for Python"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+pytz = "*"
+
+[package.extras]
+numpy = ["numpy (>=1.7.0,<3.0.0)"]
+pandas = ["pandas (>=1.1.0,<3.0.0)", "numpy (>=1.7.0,<3.0.0)"]
+pyarrow = ["pyarrow (>=1.0.0)"]
 
 [[package]]
 name = "networkx"
@@ -2500,7 +2551,7 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "70e98d17501e88ac975c049796474148d74d99bb89d8948523cc53be0e9cbf5d"
+content-hash = "adf9822c5d81e9ebe642b179f96ab588e4b41334cbcbeac2299a5e1ea81620fe"
 
 [metadata.files]
 aiohappyeyeballs = []
@@ -2530,6 +2581,8 @@ dataclasses-json = []
 deprecated = []
 distro = []
 durationpy = []
+elastic-transport = []
+elasticsearch = []
 exceptiongroup = []
 fastapi = []
 filelock = []
@@ -2582,6 +2635,7 @@ msgpack = []
 multidict = []
 mypy-extensions = []
 narwhals = []
+neo4j = []
 networkx = []
 numpy = []
 nvidia-cublas-cu12 = []

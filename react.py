@@ -4,7 +4,7 @@ from langchain import hub
 from langchain.agents import create_react_agent
 from langchain_core.prompts import PromptTemplate
 from langchain_openai.chat_models import ChatOpenAI
-from tools import search_products_by_embedding, get_promotion_by_category, get_social_recommendations
+from tools import general_chat, search_products_by_embedding, get_promotion_by_category, get_social_recommendations, verify_recommendation_consistency
 
 load_dotenv()
 
@@ -15,7 +15,9 @@ react_prompt = hub.pull("hwchase17/react")
 tools = [
     search_products_by_embedding,
     get_promotion_by_category,
-    get_social_recommendations
+    get_social_recommendations,
+    general_chat,
+    verify_recommendation_consistency
 ]
 
 llm = ChatOpenAI(model="gpt-3.5-turbo-1106")

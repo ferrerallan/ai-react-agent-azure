@@ -1,30 +1,10 @@
-import os
-import json
-import openai
-import numpy as np
-from elasticsearch import Elasticsearch
-from dotenv import load_dotenv
+# tools.py
 from typing import Optional
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from neo4j import GraphDatabase
-
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://20.9.140.20:7687")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo123456")
-
-
-# Helper: Generate an embedding from text using OpenAI.
-def generate_embedding(text: str, model: str = "text-embedding-ada-002") -> list:
-    try:
-        response = openai.embeddings.create(input=text, model=model)
-        return response.data[0].embedding
-    except Exception as e:
-        print(f"Embedding error: {e}")
-        return np.random.rand(1536).tolist()
 
 @tool
-def search_products_by_embedding(query: str) -> str:
+def search_products_by_embedding(query: str, category: Optional[str] = None) -> str:
     """
     Searches for products semantically similar to the user's query.
     Use this tool ONLY when the user is looking for specific product features or characteristics.
@@ -35,122 +15,102 @@ def search_products_by_embedding(query: str) -> str:
     :return: List of products similar to the query
     """
     print("***** VECTOR SEARCH TOOL *****")
-    print(f"Query: {query}")
-
-    ELASTIC_ENDPOINT = os.getenv("ELASTIC_ENDPOINT", "https://elastic-products.es.westus2.azure.elastic-cloud.com")
-    ELASTIC_API_KEY = os.getenv("ELASTIC_API_KEY")
-    ELASTIC_INDEX_NAME = "products"
-
-    auth_params = {}
-    if ELASTIC_API_KEY:
-        if ":" in ELASTIC_API_KEY:
-            parts = ELASTIC_API_KEY.split(":")
-            auth_params["api_key"] = (parts[0], parts[1])
-        else:
-            auth_params["headers"] = {"Authorization": f"ApiKey {ELASTIC_API_KEY}"}
-
-    try:
-        es = Elasticsearch(ELASTIC_ENDPOINT, verify_certs=True, **auth_params)
-    except Exception as e:
-        return f"Connection error: {e}"
-
-    query_vector = generate_embedding(query)
-    min_score_percentage = 85
-    raw_min_score = min_score_percentage / 50.0  # converts to raw score on a 0-2 scale
-
-    search_body = {
-        "size": 10,
-        "min_score": raw_min_score,
-        "query": {
-            "script_score": {
-                "query": {"match_all": {}},
-                "script": {
-                    "source": "cosineSimilarity(params.query_vector, 'embedding') + 1.0",
-                    "params": {"query_vector": query_vector}
-                }
-            }
+    
+    # Here we would call Elasticsearch
+    # For now, we'll simulate with mocked data
+    mock_products = [
+        {
+            "name": "Samsung Galaxy S21",
+            "category": "Smartphones",
+            "brand": "Samsung",
+            "description": "Smartphone with 6.2 inch AMOLED display, triple 64MP camera, 8GB RAM",
+            "price": 799.99
+        },
+        {
+            "name": "iPhone 13",
+            "category": "Smartphones",
+            "brand": "Apple",
+            "description": "Smartphone with A15 Bionic processor, dual 12MP camera, 4GB RAM",
+            "price": 899.99
+        },
+        {
+            "name": "Xiaomi Redmi Note 11",
+            "category": "Smartphones", 
+            "brand": "Xiaomi",
+            "description": "Smartphone with 6.4 inch display, quad camera, 6GB RAM",
+            "price": 500.99
         }
-    }
-
-    try:
-        response = es.search(index=ELASTIC_INDEX_NAME, body=search_body)
-        hits = response['hits']['hits']
-    except Exception as e:
-        return f"Search error: {e}"
-
-    if not hits:
+    ]
+    
+    if category:
+        mock_products = [p for p in mock_products if p["category"].lower() == category.lower()]
+    
+    if not mock_products:
         return "No products found matching your query."
-
+    
     result = "Products found based on your description:\n\n"
-    for hit in hits:
-        source = hit['_source']
-        result += f"Name: {source.get('name')}\n"
-        result += f"Category: {source.get('category')}\n"
-        result += f"Brand: {source.get('brand')}\n"
-        result += f"Description: {source.get('description')}\n"
-        result += f"Price: ${source.get('price'):.2f}\n\n"
-
+    for product in mock_products:
+        result += f"Name: {product['name']}\n"
+        result += f"Category: {product['category']}\n"
+        result += f"Brand: {product['brand']}\n"
+        result += f"Description: {product['description']}\n"
+        result += f"Price: ${product['price']:.2f}\n\n"
+    
     return result
+
 
 
 
 @tool
 def get_social_recommendations(user_id: str = "default_user") -> str:
     """
-    Gets product recommendations based on the user's social network (friends or friends-of-friends).
+    Gets product recommendations based on the user's social network (friends of friends).
     Use this tool when the user asks for recommendations based on their social network or what's popular.
+    ALWAYS use this tool when the user asks about what other people are buying or what's trending.
     
-    :param user_id: The user ID for whom we want social recommendations
-    :return: Formatted list of products recommended based on that user's network
+    :param user_id: User ID
+    :return: Products recommended based on social network
     """
     print("***** SOCIAL GRAPH TOOL *****")
-    clear_user = user_id.lower().replace("user_id", "").replace("'", "").replace("=", "").replace("=","").strip()
-    print(f"User ID: {clear_user}")
-
-    # Conecta ao Neo4j
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-
-    # Consulta Cypher para encontrar produtos comprados pelos amigos (ou amigos de amigos) do usuário
-    # :FRIENDS_WITH*1..2 -> relacionamentos de profundidade 1 ou 2
-    query = """
-    MATCH (u:User {userId: $user_id})-[:FRIENDS_WITH*1..2]-(x:User)-[:PURCHASED]->(p:Product)
-    RETURN p.name AS name,
-           p.category AS category,
-           p.brand AS brand,
-           p.description AS description,
-           p.price AS price,
-           count(*) AS social_count
-    ORDER BY social_count DESC
-    """
-
-    with driver.session() as session:
-        records = session.run(query, user_id=clear_user)
-        results = [record.data() for record in records]
-
-    driver.close()
-
-    # Se não encontrou nenhum produto
-    if not results:
-        return f"No products found for the social network of user '{user_id}'."
-
-    # Verifica se há smartphones no resultado
-    smartphone_results = [r for r in results if r["category"].lower() == "smartphones"]
     
-    if smartphone_results:
-        output = "Popular smartphones in your friend network:\n\n"
+    # Keep the original mock data
+    mock_results = [
+        {
+            "name": "Galaxy Buds Pro",
+            "category": "Accessories",
+            "brand": "Samsung",
+            "description": "Premium wireless earbuds with immersive audio and active noise cancellation",
+            "price": 199.99,
+            "social_count": 5
+        },
+        {
+            "name": "Smart TV 55\" Crystal UHD 4K",
+            "category": "Electronics",
+            "brand": "Samsung",
+            "description": "Smart TV with Crystal 4K processor, borderless design and integrated voice assistant",
+            "price": 649.99,
+            "social_count": 3
+        }
+    ]
+    
+    # Check if there are any smartphones in the results
+    smartphone_results = [p for p in mock_results if p["category"].lower() == "smartphones"]
+    
+    if not smartphone_results:
+        result = "Popular products in your friend network:\n\n"
+        result += "Note: There are currently no smartphones that are popular in your social network. The most popular items are:\n\n"
     else:
-        output = "Popular products in your friend network:\n\n"
-        output += "Note: There are currently no smartphones that are popular in your social network. The most popular items are:\n\n"
-
-    for r in results:
-        output += f"Name: {r['name']}\n"
-        output += f"Category: {r['category']}\n"
-        output += f"Brand: {r['brand']}\n"
-        output += f"Description: {r['description']}\n"
-        output += f"Price: ${r['price']:.2f}\n"
-        output += f"Social: {r['social_count']} friends of your friends purchased this product\n\n"
-
-    return output
+        result = "Popular smartphones in your friend network:\n\n"
+    
+    for product in mock_results:
+        result += f"Name: {product['name']}\n"
+        result += f"Category: {product['category']}\n"
+        result += f"Brand: {product['brand']}\n"
+        result += f"Description: {product['description']}\n"
+        result += f"Price: ${product['price']:.2f}\n"
+        result += f"Social: {product['social_count']} friends of your friends purchased this product\n\n"
+    
+    return result
 
 
 @tool
@@ -159,7 +119,6 @@ def get_promotion_by_category(category: str = "all") -> str:
     Searches for products on promotion with their prices and details.
     IMPORTANT: This tool ALWAYS returns complete product information including prices.
     Use this tool for any promotion-related queries.
-    DO NOT use this tool for promotion requests or social recommendations.
     
     :param category: Product category or "all" for all promotions
     :return: List of products on promotion with complete details including prices
@@ -305,7 +264,7 @@ def verify_recommendation_consistency(recommendation_data: str) -> str:
         1. Check if any products are claimed to match criteria when they don't
         2. Identify which products truly match each criterion
         3. Provide an accurate response that doesn't overstate what was found
-        4. when a product doesn't meet all criteria, limit responding to what it does meet
+        4. Be honest about when a product doesn't meet all criteria
         
         Format your response as if you're directly addressing the user's original query.
         Don't mention this verification process in your response.
