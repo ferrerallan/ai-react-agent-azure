@@ -2,11 +2,14 @@
 
 import os
 from neo4j import GraphDatabase
+from dotenv import load_dotenv
 
 # Ajuste para o endereço e a senha corretos do seu Neo4j
-NEO4J_URI = "bolt://20.9.140.20:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "neo123456"
+load_dotenv()
+
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USER = os.getenv("NEO4J_USER")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 def ingest_data(tx):
     # Cria alguns usuários

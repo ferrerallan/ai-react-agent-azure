@@ -30,3 +30,35 @@ This guide provides steps to configure Elastic Cloud service in the Azure portal
 ## Step 7: Create API Key
 1. After creating the API key, save the **full key** (formatted as `id:key`).
 2. **IMPORTANT**: Store the API key securely, as it won't be displayed again.
+
+
+# ElasticSearch on Local
+## Dependencies
+sudo apt-get update && sudo apt-get install apt-transport-https wget -y
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/8.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-8.x.list
+
+## Install
+sudo apt-get update && sudo apt-get install elasticsearch -y
+
+## Start service
+sudo systemctl enable elasticsearch
+sudo systemctl start elasticsearch
+
+## set password
+sudo /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic -i
+
+# Install Kibana
+## Install
+sudo apt install kibana
+sudo systemctl enable kibana
+sudo systemctl start kibana
+
+## Configure
+access http://localhost:5601
+
+## generate Kibana token
+sudo /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
+
+## generate verification code
+sudo /usr/share/kibana/bin/kibana-verification-code

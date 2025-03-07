@@ -36,7 +36,7 @@ def generate_embedding(text, model="text-embedding-ada-002"):
         return np.random.rand(1536).tolist()
 
 def semantic_search(es, query_text, size=3, min_score_percentage=75):
-    raw_min_score = min_score_percentage / 50.0  # Convert to raw score (0 to 2 scale)
+    raw_min_score = min_score_percentage / 50.0  
     query_vector = generate_embedding(query_text)
     body = {
         "size": size,
