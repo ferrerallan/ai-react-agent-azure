@@ -30,3 +30,8 @@
 4. Set password:
    ```bash
    sudo neo4j-admin set-initial-password neo123456
+
+
+### Verify
+systemctl status neo4j
+http://localhost:7474

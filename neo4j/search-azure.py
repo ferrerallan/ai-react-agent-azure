@@ -2,11 +2,15 @@
 
 import sys
 from neo4j import GraphDatabase
+from dotenv import load_dotenv
 
 # Ajuste para o endereço e senha corretos
-NEO4J_URI = "bolt://20.9.140.20:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "neo123456"
+load_dotenv()
+
+NEO4J_URI = os.getenv("NEO4J_URI_AZURE")
+NEO4J_USER = os.getenv("NEO4J_USER_AZURE")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_AZURE")
+
 
 def main():
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))

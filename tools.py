@@ -9,9 +9,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from neo4j import GraphDatabase
 
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://20.9.140.20:7687")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo123456")
+
 
 
 # Helper: Generate an embedding from text using OpenAI.
@@ -37,20 +35,33 @@ def search_products_by_embedding(query: str) -> str:
     print("***** VECTOR SEARCH TOOL *****")
     print(f"Query: {query}")
 
-    ELASTIC_ENDPOINT = os.getenv("ELASTIC_ENDPOINT", "https://elastic-products.es.westus2.azure.elastic-cloud.com")
-    ELASTIC_API_KEY = os.getenv("ELASTIC_API_KEY")
+    # Check if running in local environment
+    is_local = os.getenv("LOCAL", "false").lower() == "true"
+    
+    if is_local:
+        # Local environment configuration
+        ELASTIC_ENDPOINT = os.getenv("ELASTIC_HOST", "https://localhost:9200")
+        ELASTIC_USERNAME = os.getenv("ELASTIC_USERNAME", "elastic")
+        ELASTIC_PASSWORD = os.getenv("ELASTIC_PASSWORD", "elastic")
+        auth_params = {"basic_auth": (ELASTIC_USERNAME, ELASTIC_PASSWORD)}
+    else:
+        # Azure environment configuration
+        ELASTIC_ENDPOINT = os.getenv("ELASTIC_ENDPOINT", "https://elastic-products.es.westus2.azure.elastic-cloud.com")
+        ELASTIC_API_KEY = os.getenv("ELASTIC_API_KEY")
+        
+        auth_params = {}
+        if ELASTIC_API_KEY:
+            if ":" in ELASTIC_API_KEY:
+                parts = ELASTIC_API_KEY.split(":")
+                auth_params["api_key"] = (parts[0], parts[1])
+            else:
+                auth_params["headers"] = {"Authorization": f"ApiKey {ELASTIC_API_KEY}"}
+
     ELASTIC_INDEX_NAME = "products"
 
-    auth_params = {}
-    if ELASTIC_API_KEY:
-        if ":" in ELASTIC_API_KEY:
-            parts = ELASTIC_API_KEY.split(":")
-            auth_params["api_key"] = (parts[0], parts[1])
-        else:
-            auth_params["headers"] = {"Authorization": f"ApiKey {ELASTIC_API_KEY}"}
-
     try:
-        es = Elasticsearch(ELASTIC_ENDPOINT, verify_certs=True, **auth_params)
+        verify_certs = not is_local
+        es = Elasticsearch(ELASTIC_ENDPOINT, verify_certs=verify_certs, **auth_params)
     except Exception as e:
         return f"Connection error: {e}"
 
@@ -92,10 +103,8 @@ def search_products_by_embedding(query: str) -> str:
 
     return result
 
-
-
 @tool
-def get_social_recommendations(user_id: str = "default_user") -> str:
+def get_social_recommendations(user_id: str = "Bob") -> str:
     """
     Gets product recommendations based on the user's social network (friends or friends-of-friends).
     Use this tool when the user asks for recommendations based on their social network or what's popular.
@@ -103,15 +112,26 @@ def get_social_recommendations(user_id: str = "default_user") -> str:
     :param user_id: The user ID for whom we want social recommendations
     :return: Formatted list of products recommended based on that user's network
     """
+
+    is_local = os.getenv("LOCAL", "false").lower() == "true"
+
+    if is_local:
+        NEO4J_URI = os.getenv("NEO4J_URI")
+        NEO4J_USER = os.getenv("NEO4J_USER")
+        NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+    else:
+        NEO4J_URI = os.getenv("NEO4J_URI_AZURE")
+        NEO4J_USER = os.getenv("NEO4J_USER_AZURE")
+        NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD_AZURE")
+
     print("***** SOCIAL GRAPH TOOL *****")
-    clear_user = user_id.lower().replace("user_id", "").replace("'", "").replace("=", "").replace("=","").strip()
+    clear_user = user_id.lower().replace("user_id", "").replace("'", "").replace("=", "").strip()
     print(f"User ID: {clear_user}")
 
-    # Conecta ao Neo4j
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    # Connect to Neo4j
+    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD) )
 
-    # Consulta Cypher para encontrar produtos comprados pelos amigos (ou amigos de amigos) do usuário
-    # :FRIENDS_WITH*1..2 -> relacionamentos de profundidade 1 ou 2
+    # Cypher query to find products purchased by user's friends or friends-of-friends
     query = """
     MATCH (u:User {userId: $user_id})-[:FRIENDS_WITH*1..2]-(x:User)-[:PURCHASED]->(p:Product)
     RETURN p.name AS name,
@@ -123,35 +143,47 @@ def get_social_recommendations(user_id: str = "default_user") -> str:
     ORDER BY social_count DESC
     """
 
-    with driver.session() as session:
-        records = session.run(query, user_id=clear_user)
-        results = [record.data() for record in records]
+    try:
+        with driver.session() as session:
+            records = session.run(query, user_id=clear_user)
+            results = [record.data() for record in records]
+    except Exception as e:
+        return f"Error querying social recommendations: {str(e)}"
+    finally:
+        driver.close()
 
-    driver.close()
-
-    # Se não encontrou nenhum produto
+    # If no products found
     if not results:
-        return f"No products found for the social network of user '{user_id}'."
+        return f"No products found in the social network of user '{clear_user}'."
 
-    # Verifica se há smartphones no resultado
-    smartphone_results = [r for r in results if r["category"].lower() == "smartphones"]
-    
-    if smartphone_results:
-        output = "Popular smartphones in your friend network:\n\n"
-    else:
-        output = "Popular products in your friend network:\n\n"
-        output += "Note: There are currently no smartphones that are popular in your social network. The most popular items are:\n\n"
+    # Group results by category
+    categories = {}
+    for r in results:
+        cat = r["category"]
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append(r)
 
+    # Build output
+    output = "Popular products in your friend network:\n\n"
+
+    # Show category breakdown
+    if len(categories) > 1:
+        output += "Category breakdown:\n"
+        for cat, items in categories.items():
+            output += f"- {cat}: {len(items)} products\n"
+        output += "\n"
+
+    # Show product details
     for r in results:
         output += f"Name: {r['name']}\n"
         output += f"Category: {r['category']}\n"
         output += f"Brand: {r['brand']}\n"
         output += f"Description: {r['description']}\n"
         output += f"Price: ${r['price']:.2f}\n"
-        output += f"Social: {r['social_count']} friends of your friends purchased this product\n\n"
+        output += f"Social: {r['social_count']} friends or friends-of-friends purchased this\n\n"
 
     return output
-
 
 @tool
 def get_promotion_by_category(category: str = "all") -> str:
@@ -279,7 +311,6 @@ def general_chat(input: str) -> str:
     )
     
     return response.content
-
 
 @tool
 def verify_recommendation_consistency(recommendation_data: str) -> str:
