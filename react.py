@@ -20,6 +20,6 @@ tools = [
     verify_recommendation_consistency
 ]
 
-llm = ChatOpenAI(model="gpt-3.5-turbo-1106")
+llm = ChatOpenAI(model="gpt-4")
 
 react_agent_runnable = create_react_agent(llm, tools, react_prompt)
